@@ -59,6 +59,7 @@ public:
 
   // = Scene transform
   glm::mat4 getModelView();
+  glm::mat4 getTransform();
   void setTransform(glm::mat4x4 transform);
   void centerBoundingBox();
   void rescaleToUnit();
