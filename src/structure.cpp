@@ -162,6 +162,8 @@ void Structure::rescaleToUnit() {
 
 glm::mat4 Structure::getModelView() { return view::getCameraViewMatrix() * objectTransform.get(); }
 
+glm::mat4 Structure::getTransform() { return objectTransform.get(); }
+
 void Structure::setTransformUniforms(render::ShaderProgram& p) {
   glm::mat4 viewMat = getModelView();
   p.setUniform("u_modelView", glm::value_ptr(viewMat));
