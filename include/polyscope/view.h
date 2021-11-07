@@ -5,6 +5,7 @@
 #include <string>
 
 #include "polyscope/camera_parameters.h"
+#include "polyscope/types.h"
 //#include "polyscope/gl/gl_utils.h"
 
 // GLM for view matrices
@@ -42,6 +43,7 @@ extern std::array<float, 4> bgColor;
 // Current view camera parameters
 extern glm::mat4x4 viewMat;
 extern double fov; // in the y direction
+extern ProjectionMode projectionMode;
 
 // "Flying" view
 extern bool midflight;
@@ -80,6 +82,10 @@ glm::mat4 computeHomeView();
 void resetCameraToHomeView();
 void flyToHomeView();
 
+// Set the camera extrinsics to look at a particular location
+void lookAt(glm::vec3 cameraLocation, glm::vec3 target, bool flyTo = false);
+void lookAt(glm::vec3 cameraLocation, glm::vec3 target, glm::vec3 upDir, bool flyTo = false);
+
 // Get various camera matrices and data
 glm::mat4 getCameraViewMatrix();
 glm::mat4 getCameraPerspectiveMatrix();
@@ -105,6 +111,7 @@ void updateFlight(); // Note: uses wall-clock time, so should generally be calle
 // Setters, getters, etc
 void setUpDir(UpDir newUpDir, bool animateFlight=false);
 UpDir getUpDir();
+glm::vec3 getUpVec();
 
 } // namespace view
 } // namespace polyscope

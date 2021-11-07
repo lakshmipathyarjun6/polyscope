@@ -14,12 +14,20 @@ namespace {
 // when the destructor executes. The lame solution is to just store as raw pointers, it only makes a difference at
 // program exit.
 std::vector<SlicePlane*> sceneSlicePlanes;
+
 } // namespace
 
-SlicePlane* addSceneSlicePlane() {
+// Storage for global options
+bool openSlicePlaneMenu = false;
+
+SlicePlane* addSceneSlicePlane(bool initiallyVisible) {
   size_t nPlanes = sceneSlicePlanes.size();
   std::string newName = "Scene Slice Plane " + std::to_string(nPlanes);
   sceneSlicePlanes.emplace_back(new SlicePlane(newName));
+  if (!initiallyVisible) {
+    sceneSlicePlanes.back()->setDrawPlane(false);
+    sceneSlicePlanes.back()->setDrawWidget(false);
+  }
   return sceneSlicePlanes.back();
 }
 
@@ -31,10 +39,15 @@ void removeLastSceneSlicePlane() {
 
 void buildSlicePlaneGUI() {
 
+
   ImGui::SetNextTreeNodeOpen(false, ImGuiCond_FirstUseEver);
+  if (openSlicePlaneMenu) {
+    ImGui::SetNextTreeNodeOpen(true);
+    openSlicePlaneMenu = false;
+  }
   if (ImGui::TreeNode("Slice Planes")) {
     if (ImGui::Button("Add plane")) {
-      addSceneSlicePlane();
+      addSceneSlicePlane(true);
     }
     ImGui::SameLine();
     if (ImGui::Button("Remove plane")) {
@@ -49,9 +62,10 @@ void buildSlicePlaneGUI() {
 
 SlicePlane::SlicePlane(std::string name_)
     : name(name_), postfix(std::to_string(state::slicePlanes.size())), active("SlicePlane#" + name + "#active", true),
-      drawPlane("SlicePlane#" + name + "#drawPlane", true),
+      drawPlane("SlicePlane#" + name + "#drawPlane", true), drawWidget("SlicePlane#" + name + "#drawWidget", true),
       objectTransform("SlicePlane#" + name + "#object_transform", glm::mat4(1.0)),
       color("SlicePlane#" + name + "#color", getNextUniqueColor()),
+      gridLineColor("SlicePlane#" + name + "#gridLineColor", glm::vec3{.97, .97, .97}),
       transparency("SlicePlane#" + name + "#transparency", 0.5),
       transformGizmo("SlicePlane#" + name + "#transform_gizmo", objectTransform.get(), &objectTransform) {
   state::slicePlanes.push_back(this);
@@ -92,7 +106,7 @@ void SlicePlane::prepare() {
 }
 
 void SlicePlane::draw() {
-  if (!drawPlane.get()) return;
+  if (!drawPlane.get() || !active.get()) return;
 
   // Set uniforms
   glm::mat4 viewMat = view::getCameraViewMatrix();
@@ -102,7 +116,8 @@ void SlicePlane::draw() {
 
   planeProgram->setUniform("u_objectMatrix", glm::value_ptr(objectTransform.get()));
   planeProgram->setUniform("u_lengthScale", state::lengthScale);
-  planeProgram->setUniform("u_color", color.get());
+  planeProgram->setUniform("u_color", getColor());
+  planeProgram->setUniform("u_gridLineColor", getGridLineColor());
   planeProgram->setUniform("u_transparency", transparency.get());
 
   // glm::vec3 center{objectTransform.get()[3][0], objectTransform.get()[3][1], objectTransform.get()[3][2]};
@@ -117,13 +132,34 @@ void SlicePlane::draw() {
 void SlicePlane::buildGUI() {
   ImGui::PushID(name.c_str());
 
-  ImGui::TextUnformatted(name.c_str());
-  ImGui::Indent(16.);
-  if (ImGui::Checkbox("active", &active.get())) active.manuallyChanged();
+  if (ImGui::Checkbox(name.c_str(), &active.get())) {
+    setActive(getActive());
+  }
+  
   ImGui::SameLine();
+
+  { // Color transparency box
+    // Pack the color & transparency in to a vec4
+    glm::vec3 colorBefore = getColor();
+    float transparencyBefore = getTransparency();
+    std::array<float, 4> color{colorBefore.x, colorBefore.y, colorBefore.z, transparencyBefore};
+    if (ImGui::ColorEdit4("##color and trans", &color[0], ImGuiColorEditFlags_NoInputs)) {
+      if (color[0] != colorBefore[0] || color[1] != colorBefore[1] || color[2] != colorBefore[2]) {
+        setColor(glm::vec3{color[0], color[1], color[2]});
+      }
+      if (color[3] != transparencyBefore) {
+        setTransparency(color[3]);
+      }
+    }
+  }
+
+  ImGui::Indent(16.);
   if (ImGui::Checkbox("draw plane", &drawPlane.get())) {
-    drawPlane.manuallyChanged();
-    transformGizmo.enabled = drawPlane.get();
+    setDrawPlane(getDrawPlane());
+  }
+  ImGui::SameLine();
+  if (ImGui::Checkbox("draw widget", &drawWidget.get())) {
+    setDrawWidget(getDrawWidget());
   }
   ImGui::Unindent(16.);
 
@@ -137,8 +173,9 @@ void SlicePlane::setSceneObjectUniforms(render::ShaderProgram& p, bool alwaysPas
     normal = glm::vec3{-1., 0., 0.};
     center = glm::vec3{std::numeric_limits<float>::infinity(), 0., 0.};
   } else {
-    normal = getNormal();
-    center = getCenter();
+    glm::mat4 viewMat = view::getCameraViewMatrix();
+    normal = glm::vec3(viewMat * glm::vec4(getNormal(), 0.));
+    center = glm::vec3(viewMat * glm::vec4(getCenter(), 1.));
   }
 
   p.setUniform("u_slicePlaneNormal_" + postfix, normal);
@@ -166,9 +203,41 @@ glm::vec3 SlicePlane::getNormal() {
   }
 }
 
+void SlicePlane::updateWidgetEnabled() {
+  bool enabled = getActive() && getDrawWidget();
+  transformGizmo.enabled = enabled;
+}
+
+void SlicePlane::setPose(glm::vec3 planePosition, glm::vec3 planeNormal) {
+
+  // Choose the other axes to be most similar to the current ones, which will make animations look smoother
+  // if the grid is shown
+  glm::vec3 currBasisX{objectTransform.get()[1][0], objectTransform.get()[1][1], objectTransform.get()[1][2]};
+  glm::vec3 currBasisY{objectTransform.get()[2][0], objectTransform.get()[2][1], objectTransform.get()[2][2]};
+
+  glm::vec3 normal = glm::normalize(planeNormal);
+  glm::vec3 basisX = currBasisX - normal * glm::dot(normal, currBasisX);
+  if (glm::length(basisX) < 0.01) basisX = currBasisY - normal * glm::dot(normal, currBasisY);
+  basisX = glm::normalize(basisX);
+  glm::vec3 basisY = glm::cross(normal, basisX);
+
+  // Build the rotation component
+  glm::mat4x4 newTransform = glm::mat4x4(1.0);
+  for (int i = 0; i < 3; i++) newTransform[0][i] = normal[i];
+  for (int i = 0; i < 3; i++) newTransform[1][i] = basisX[i];
+  for (int i = 0; i < 3; i++) newTransform[2][i] = basisY[i];
+
+  // Build the translation component
+  for (int i = 0; i < 3; i++) newTransform[3][i] = planePosition[i];
+
+  objectTransform = newTransform;
+  polyscope::requestRedraw();
+}
+
 bool SlicePlane::getActive() { return active.get(); }
 void SlicePlane::setActive(bool newVal) {
   active = newVal;
+  updateWidgetEnabled();
   polyscope::requestRedraw();
 }
 
@@ -178,10 +247,35 @@ void SlicePlane::setDrawPlane(bool newVal) {
   polyscope::requestRedraw();
 }
 
+bool SlicePlane::getDrawWidget() { return drawWidget.get(); }
+void SlicePlane::setDrawWidget(bool newVal) {
+  drawWidget = newVal;
+  updateWidgetEnabled();
+  polyscope::requestRedraw();
+}
+
 glm::mat4 SlicePlane::getTransform() { return objectTransform.get(); }
 void SlicePlane::setTransform(glm::mat4 newTransform) {
   objectTransform = newTransform;
   polyscope::requestRedraw();
 }
+
+void SlicePlane::setColor(glm::vec3 newVal) {
+  color = newVal;
+  polyscope::requestRedraw();
+}
+glm::vec3 SlicePlane::getColor() { return color.get(); }
+
+void SlicePlane::setGridLineColor(glm::vec3 newVal) {
+  gridLineColor = newVal;
+  polyscope::requestRedraw();
+}
+glm::vec3 SlicePlane::getGridLineColor() { return gridLineColor.get(); }
+
+void SlicePlane::setTransparency(double newVal) {
+  transparency = newVal;
+  requestRedraw();
+}
+double SlicePlane::getTransparency() { return transparency.get(); }
 
 } // namespace polyscope

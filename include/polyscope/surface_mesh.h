@@ -10,8 +10,8 @@
 #include "polyscope/render/engine.h"
 #include "polyscope/standardize_data_array.h"
 #include "polyscope/structure.h"
-#include "polyscope/surface_mesh_enums.h"
 #include "polyscope/surface_mesh_quantity.h"
+#include "polyscope/types.h"
 
 // Alllll the quantities
 #include "polyscope/surface_color_quantity.h"
@@ -293,6 +293,9 @@ public:
   SurfaceMesh* setMaterial(std::string name);
   std::string getMaterial();
 
+  // Backface color
+  SurfaceMesh* setBackFaceColor(glm::vec3 val);
+  glm::vec3 getBackFaceColor();
 
   // Width of the edges. Scaled such that 1 is a reasonable weight for visible edges, but values  1 can be used for
   // bigger edges. Use 0. to disable.
@@ -300,13 +303,14 @@ public:
   double getEdgeWidth();
 
   // Backface policy
-  SurfaceMesh* setBackfacePolicy(BackfacePolicy newPolicy);
-  BackfacePolicy getBackfacePolicy();
+  SurfaceMesh* setBackFacePolicy(BackFacePolicy newPolicy);
+  BackFacePolicy getBackFacePolicy();
 
   // Rendering helpers used by quantities
-  std::vector<std::string> addStructureRules(std::vector<std::string> initRules);
-  void setStructureUniforms(render::ShaderProgram& p);
+  void setSurfaceMeshUniforms(render::ShaderProgram& p);
   void fillGeometryBuffers(render::ShaderProgram& p);
+  std::vector<std::string> addSurfaceMeshRules(std::vector<std::string> initRules, bool withMesh = true,
+                                               bool withSurfaceShade = true);
 
 private:
   // Visualization settings
@@ -315,7 +319,8 @@ private:
   PersistentValue<glm::vec3> edgeColor;
   PersistentValue<std::string> material;
   PersistentValue<float> edgeWidth;
-  PersistentValue<BackfacePolicy> backfacePolicy;
+  PersistentValue<BackFacePolicy> backFacePolicy;
+  PersistentValue<glm::vec3> backFaceColor;
 
   // Do setup work related to drawing, including allocating openGL data
   void prepare();

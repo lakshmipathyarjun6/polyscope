@@ -29,7 +29,7 @@ void PointCloudScalarQuantity::draw() {
   }
 
   // Set uniforms
-  parent.setTransformUniforms(*pointProgram);
+  parent.setStructureUniforms(*pointProgram);
   parent.setPointCloudUniforms(*pointProgram);
   setScalarUniforms(*pointProgram);
 
@@ -58,8 +58,8 @@ void PointCloudScalarQuantity::buildCustomUI() {
 void PointCloudScalarQuantity::createPointProgram() {
   // Create the program to draw this quantity
 
-  pointProgram = render::engine->requestShader("RAYCAST_SPHERE",
-                                               parent.addStructureRules(addScalarRules({"SPHERE_PROPAGATE_VALUE"})));
+  pointProgram = render::engine->requestShader(parent.getShaderNameForRenderMode(),
+                                               parent.addPointCloudRules(addScalarRules({"SPHERE_PROPAGATE_VALUE"})));
 
   // Fill buffers
   parent.fillGeometryBuffers(*pointProgram);

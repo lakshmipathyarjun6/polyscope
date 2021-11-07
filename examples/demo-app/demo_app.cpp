@@ -4,17 +4,21 @@
 #include "polyscope/messages.h"
 
 #include "polyscope/curve_network.h"
+#include "polyscope/file_helpers.h"
 #include "polyscope/point_cloud.h"
 #include "polyscope/surface_mesh.h"
 #include "polyscope/surface_mesh_io.h"
-#include "polyscope/file_helpers.h"
+#include "polyscope/volume_mesh.h"
 
 #include <iostream>
 #include <unordered_set>
 #include <utility>
 
 #include "args/args.hxx"
+#include "happly.h"
 #include "json/json.hpp"
+
+#include "simple_dot_mesh_parser.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/string_cast.hpp"
@@ -425,6 +429,42 @@ polyscope::warning("Some problems come in groups", "detail = " + std::to_string(
   */
 }
 
+void processFileDotMesh(std::string filename) {
+  std::vector<std::array<double, 3>> verts;
+  std::vector<std::array<int64_t, 8>> cells;
+  parseVolumeDotMesh(filename, verts, cells);
+  std::string niceName = polyscope::guessNiceNameFromPath(filename);
+
+  std::cout << "parsed mesh with " << verts.size() << " verts and " << cells.size() << " cells\n";
+
+  auto ps_vol = polyscope::registerVolumeMesh(niceName, verts, cells);
+
+  // Add some scalar quantities
+  std::vector<std::array<double, 3>> randColorV(verts.size());
+  std::vector<std::array<double, 3>> randVecV(verts.size());
+  std::vector<double> scalarV(verts.size());
+  std::vector<std::array<double, 3>> randColorC(cells.size());
+  std::vector<std::array<double, 3>> randVecC(cells.size());
+  std::vector<double> scalarC(cells.size());
+  for (size_t i = 0; i < verts.size(); i++) {
+    randColorV[i] = {{polyscope::randomUnit(), polyscope::randomUnit(), polyscope::randomUnit()}};
+    randVecV[i] = {{polyscope::randomUnit() - .5, polyscope::randomUnit() - .5, polyscope::randomUnit() - .5}};
+    scalarV[i] = verts[i][0];
+  }
+  for (size_t i = 0; i < cells.size(); i++) {
+    randColorC[i] = {{polyscope::randomUnit(), polyscope::randomUnit(), polyscope::randomUnit()}};
+    randVecC[i] = {{polyscope::randomUnit() - .5, polyscope::randomUnit() - .5, polyscope::randomUnit() - .5}};
+    scalarC[i] = polyscope::randomUnit();
+  }
+
+  polyscope::getVolumeMesh(niceName)->addVertexColorQuantity("random color", randColorV);
+  polyscope::getVolumeMesh(niceName)->addCellColorQuantity("random color2", randColorC);
+  polyscope::getVolumeMesh(niceName)->addVertexScalarQuantity("scalar Q", scalarV);
+  polyscope::getVolumeMesh(niceName)->addCellScalarQuantity("scalar Q2", scalarC);
+  polyscope::getVolumeMesh(niceName)->addVertexVectorQuantity("random vec", randVecV);
+  polyscope::getVolumeMesh(niceName)->addCellVectorQuantity("random vec2", randVecC);
+}
+
 void addDataToPointCloud(string pointCloudName, const std::vector<glm::vec3>& points) {
 
 
@@ -455,15 +495,45 @@ void addDataToPointCloud(string pointCloudName, const std::vector<glm::vec3>& po
   polyscope::getPointCloud(pointCloudName)->addVectorQuantity("to zero", toZeroVec, polyscope::VectorType::AMBIENT);
 }
 
+// PLY files get loaded as point clouds
+void processFilePLY(string filename) {
+
+  // load the data
+  happly::PLYData plyIn(filename);
+  std::vector<std::array<double, 3>> vPos = plyIn.getVertexPositions();
+
+  polyscope::PointCloud* psCloud = polyscope::registerPointCloud(polyscope::guessNiceNameFromPath(filename), vPos);
+  // psCloud->setPointRenderMode(polyscope::PointRenderMode::Square);
+
+  // Try to add colors if we have them
+  try {
+    std::vector<std::array<unsigned char, 3>> vColor = plyIn.getVertexColors();
+    std::vector<std::array<float, 3>> vColorF(vColor.size());
+    for (size_t i = 0; i < vColorF.size(); i++) {
+      for (int j = 0; j < 3; j++) {
+        vColorF[i][j] = vColor[i][j] / 255.;
+      }
+    }
+    psCloud->addColorQuantity("color", vColorF)->setEnabled(true);
+  } catch (const std::exception& e) {
+  }
+}
+
 
 void processFile(string filename) {
   // Dispatch to correct varient
   if (endsWith(filename, ".obj")) {
     processFileOBJ(filename);
+  } else if (endsWith(filename, ".mesh")) {
+    processFileDotMesh(filename);
+  } else if (endsWith(filename, ".ply")) {
+    // PLY files get loaded as point clouds
+    processFilePLY(filename);
   } else {
     cerr << "Unrecognized file type for " << filename << endl;
   }
 }
+
 
 void callback() {
   static int numPoints = 2000;
@@ -511,8 +581,6 @@ int main(int argc, char** argv) {
   // polyscope::view::windowWidth = 600;
   // polyscope::view::windowHeight = 800;
   // polyscope::options::maxFPS = -1;
-  // polyscope::options::alwaysRedraw = true;
-
 
   // Initialize polyscope
   polyscope::init();

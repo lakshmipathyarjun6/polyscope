@@ -6,6 +6,7 @@
 #include "polyscope/point_cloud.h"
 #include "polyscope/polyscope.h"
 #include "polyscope/surface_mesh.h"
+#include "polyscope/volume_mesh.h"
 
 #include "gtest/gtest.h"
 
@@ -15,9 +16,6 @@
 #include <string>
 #include <vector>
 
-
-using std::cout;
-using std::endl;
 
 class PolyscopeTest : public ::testing::Test {
 protected:
@@ -86,7 +84,9 @@ std::vector<glm::vec3> getPoints() {
 
 polyscope::PointCloud* registerPointCloud(std::string name = "test1") {
   std::vector<glm::vec3> points = getPoints();
-  return polyscope::registerPointCloud(name, points);
+  polyscope::PointCloud* psPoints = polyscope::registerPointCloud(name, points);
+  psPoints->setPointRenderMode(polyscope::PointRenderMode::Sphere);
+  return psPoints;
 }
 
 
@@ -111,6 +111,9 @@ TEST_F(PolyscopeTest, PointCloudAppearance) {
   psPoints->setMaterial("wax");
   EXPECT_EQ(psPoints->getMaterial(), "wax");
   polyscope::show(3);
+  
+  psPoints->setPointRenderMode(polyscope::PointRenderMode::Quad);
+  polyscope::show(3);
 
   polyscope::removeAllStructures();
 }
@@ -119,6 +122,9 @@ TEST_F(PolyscopeTest, PointCloudPick) {
   auto psPoints = registerPointCloud();
 
   // Don't bother trying to actually click on anything, but make sure this doesn't crash
+  polyscope::pick::evaluatePickQuery(77, 88);
+  
+  psPoints->setPointRenderMode(polyscope::PointRenderMode::Quad);
   polyscope::pick::evaluatePickQuery(77, 88);
 
   polyscope::removeAllStructures();
@@ -131,19 +137,8 @@ TEST_F(PolyscopeTest, PointCloudColor) {
   auto q1 = psPoints->addColorQuantity("vcolor", vColors);
   q1->setEnabled(true);
   polyscope::show(3);
-  polyscope::removeAllStructures();
-}
-
-TEST_F(PolyscopeTest, PointCloudParam) {
-  auto psPoints = registerPointCloud();
-  std::vector<glm::vec2> param(psPoints->nPoints(), glm::vec2{.2, .3});
-
-  auto q1 = psPoints->addParameterizationQuantity("param", param);
-  q1->setEnabled(true);
-  polyscope::show(3);
-
-  auto q2 = psPoints->addLocalParameterizationQuantity("local param", param);
-  q2->setEnabled(true);
+  
+  psPoints->setPointRenderMode(polyscope::PointRenderMode::Quad);
   polyscope::show(3);
 
   polyscope::removeAllStructures();
@@ -154,6 +149,8 @@ TEST_F(PolyscopeTest, PointCloudScalar) {
   std::vector<double> vScalar(psPoints->nPoints(), 7.);
   auto q1 = psPoints->addScalarQuantity("vScalar", vScalar);
   q1->setEnabled(true);
+  polyscope::show(3);
+  psPoints->setPointRenderMode(polyscope::PointRenderMode::Quad);
   polyscope::show(3);
   polyscope::removeAllStructures();
 }
@@ -168,6 +165,28 @@ TEST_F(PolyscopeTest, PointCloudVector) {
 }
 
 
+TEST_F(PolyscopeTest, PointCloudParam) {
+  auto psPoints = registerPointCloud();
+  std::vector<glm::vec2> param(psPoints->nPoints(), glm::vec2{.2, .3});
+
+  auto q1 = psPoints->addParameterizationQuantity("param", param);
+  q1->setEnabled(true);
+  polyscope::show(3);
+  
+  psPoints->setPointRenderMode(polyscope::PointRenderMode::Quad);
+  polyscope::show(3);
+
+  auto q2 = psPoints->addLocalParameterizationQuantity("local param", param);
+  psPoints->setPointRenderMode(polyscope::PointRenderMode::Sphere);
+  q2->setEnabled(true);
+  polyscope::show(3);
+  
+  psPoints->setPointRenderMode(polyscope::PointRenderMode::Quad);
+  polyscope::show(3);
+
+  polyscope::removeAllStructures();
+}
+
 TEST_F(PolyscopeTest, PointCloudScalarRadius) {
   auto psPoints = registerPointCloud();
   std::vector<double> vScalar(psPoints->nPoints(), 7.);
@@ -177,6 +196,9 @@ TEST_F(PolyscopeTest, PointCloudScalarRadius) {
   q1->setEnabled(true);
 
   psPoints->setPointRadiusQuantity(q1);
+  polyscope::show(3);
+  
+  psPoints->setPointRenderMode(polyscope::PointRenderMode::Quad);
   polyscope::show(3);
 
   psPoints->setPointRadiusQuantity("vScalar2");
@@ -275,6 +297,28 @@ TEST_F(PolyscopeTest, SurfaceMeshPick) {
   polyscope::removeAllStructures();
 }
 
+TEST_F(PolyscopeTest, SurfaceMeshBackface) {
+  auto psMesh = registerTriangleMesh();
+
+  // Same appearance
+  psMesh->setBackFacePolicy(polyscope::BackFacePolicy::Identical);
+  EXPECT_EQ(psMesh->getBackFacePolicy(), polyscope::BackFacePolicy::Identical);
+  polyscope::show(3);
+
+  // Different appearance
+  psMesh->setBackFacePolicy(polyscope::BackFacePolicy::Different);
+  EXPECT_EQ(psMesh->getBackFacePolicy(), polyscope::BackFacePolicy::Different);
+  psMesh->setBackFaceColor(glm::vec3(1.f, 0.f, 0.f));
+  EXPECT_EQ(psMesh->getBackFaceColor(), glm::vec3(1.f, 0.f, 0.f));
+  polyscope::show(3);
+
+  // Cull backfacing
+  psMesh->setBackFacePolicy(polyscope::BackFacePolicy::Cull);
+  EXPECT_EQ(psMesh->getBackFacePolicy(), polyscope::BackFacePolicy::Cull);
+  polyscope::show(3);
+
+  polyscope::removeAllStructures();
+}
 
 TEST_F(PolyscopeTest, SurfaceMeshColorVertex) {
   auto psMesh = registerTriangleMesh();
@@ -653,11 +697,251 @@ TEST_F(PolyscopeTest, CurveNetworkFaceVector) {
   polyscope::removeAllStructures();
 }
 
+// ============================================================
+// =============== Volume mesh tests
+// ============================================================
+
+std::tuple<std::vector<glm::vec3>, std::vector<std::array<int, 8>>> getVolumeMeshData() {
+  // clang-format off
+  std::vector<glm::vec3> combined_verts = {
+    {0, 0, 0},
+    {1, 0, 0},
+    {1, 1, 0},
+    {0, 1, 0},
+    {0, 0, 1},
+    {1, 0, 1},
+    {1, 1, 1},
+    {0, 1, 1},
+    {1, 1, 1.5}
+  };
+
+  std::vector<std::array<int, 8>> combined_cells = {
+    {0, 1, 2, 3, 4, 5, 6, 7},
+    {7, 5, 6, 8, -1, -1, -1, -1},
+  };
+  // clang-format on
+
+  return std::make_tuple(combined_verts, combined_cells);
+};
+
+TEST_F(PolyscopeTest, ShowVolumeMesh) {
+  // clang-format off
+
+  // Tets only
+  std::vector<glm::vec3> tet_verts = {
+    {0, 0, 0},
+    {0, 0, 1},
+    {0, 1, 0},
+    {0, 1, 1},
+  };
+  std::vector<std::array<size_t, 4>> tet_cells = {
+    {0,1,2,4}
+  };
+  polyscope::registerTetMesh("tet", tet_verts, tet_cells);
+   
+
+  // Hexes only
+  std::vector<glm::vec3> hex_verts = {
+    {0, 0, 0},
+    {0, 0, 1},
+    {0, 1, 0},
+    {0, 1, 1},
+    {1, 0, 0},
+    {1, 0, 1},
+    {1, 1, 0},
+    {1, 1, 1},
+  };
+  std::vector<std::array<size_t, 8>> hex_cells = {
+    {0,1,2,3,4,5,6,7},
+  };
+  polyscope::registerHexMesh("hex", hex_verts, hex_cells);
+
+
+  // clang-format on
+
+  // Mixed elements, separate arrays
+  std::vector<glm::vec3> combined_verts;
+  combined_verts.insert(combined_verts.end(), tet_verts.begin(), tet_verts.end());
+  combined_verts.insert(combined_verts.end(), hex_verts.begin(), hex_verts.end());
+  for (auto& hex : hex_cells) {
+    for (size_t& i : hex) {
+      i += tet_verts.size();
+    }
+  }
+  polyscope::registerTetHexMesh("tet hex mix separate", combined_verts, tet_cells, hex_cells);
+
+
+  // Mixed elements, shared array
+  std::vector<std::array<int, 8>> combined_cells = {
+      {0, 1, 3, 4, -1, -1, -1, -1},
+      {4, 5, 6, 7, 8, 9, 10, 11},
+  };
+  polyscope::registerVolumeMesh("tet hex mix combined", combined_verts, combined_cells);
+
+  polyscope::removeAllStructures();
+}
+
+TEST_F(PolyscopeTest, VolumeMeshAppearance) {
+  std::vector<glm::vec3> verts;
+  std::vector<std::array<int, 8>> cells;
+  std::tie(verts, cells) = getVolumeMeshData();
+  polyscope::VolumeMesh* psVol = polyscope::registerVolumeMesh("vol", verts, cells);
+
+  // Material
+  psVol->setMaterial("wax");
+  EXPECT_EQ(psVol->getMaterial(), "wax");
+  polyscope::show(3);
+
+  // Color of the mesh
+  glm::vec3 color{0.5, 0.25, 0.25};
+  psVol->setColor(color);
+  EXPECT_EQ(color, psVol->getColor());
+
+  // Color of the mesh inteiror
+  glm::vec3 colorI{0.5, 0.25, 0.75};
+  psVol->setInteriorColor(colorI);
+  EXPECT_EQ(colorI, psVol->getInteriorColor());
+
+  // Color of the mesh edges
+  glm::vec3 colorE{0.5, 0.25, 0.5};
+  psVol->setEdgeColor(colorE);
+  EXPECT_EQ(colorE, psVol->getEdgeColor());
+  polyscope::show(3);
+
+  // Edge width
+  psVol->setEdgeWidth(0.25);
+  EXPECT_EQ(0.25, psVol->getEdgeWidth());
+
+  // Transparency
+  psVol->setTransparency(0.25);
+  EXPECT_EQ(0.25, psVol->getTransparency());
+
+  polyscope::removeAllStructures();
+}
+
+TEST_F(PolyscopeTest, VolumeMeshPick) {
+  std::vector<glm::vec3> verts;
+  std::vector<std::array<int, 8>> cells;
+  std::tie(verts, cells) = getVolumeMeshData();
+  polyscope::VolumeMesh* psVol = polyscope::registerVolumeMesh("vol", verts, cells);
+
+  // Don't bother trying to actually click on anything, but make sure this doesn't crash
+  polyscope::pick::evaluatePickQuery(77, 88);
+
+  polyscope::removeAllStructures();
+}
+
+
+TEST_F(PolyscopeTest, VolumeMeshColorVertex) {
+  std::vector<glm::vec3> verts;
+  std::vector<std::array<int, 8>> cells;
+  std::tie(verts, cells) = getVolumeMeshData();
+  polyscope::VolumeMesh* psVol = polyscope::registerVolumeMesh("vol", verts, cells);
+
+  std::vector<glm::vec3> vColors(verts.size(), glm::vec3{.2, .3, .4});
+  auto q1 = psVol->addVertexColorQuantity("vcolor", vColors);
+  q1->setEnabled(true);
+  polyscope::show(3);
+  polyscope::removeAllStructures();
+}
+
+TEST_F(PolyscopeTest, VolumeMeshColorCell) {
+  std::vector<glm::vec3> verts;
+  std::vector<std::array<int, 8>> cells;
+  std::tie(verts, cells) = getVolumeMeshData();
+  polyscope::VolumeMesh* psVol = polyscope::registerVolumeMesh("vol", verts, cells);
+
+  std::vector<glm::vec3> cColors(cells.size(), glm::vec3{.2, .3, .4});
+  auto q1 = psVol->addCellColorQuantity("ccolor", cColors);
+  q1->setEnabled(true);
+  polyscope::show(3);
+  polyscope::removeAllStructures();
+}
+
+TEST_F(PolyscopeTest, VolumeMeshScalarVertex) {
+  std::vector<glm::vec3> verts;
+  std::vector<std::array<int, 8>> cells;
+  std::tie(verts, cells) = getVolumeMeshData();
+  polyscope::VolumeMesh* psVol = polyscope::registerVolumeMesh("vol", verts, cells);
+
+  std::vector<float> vals(verts.size(), 0.44);
+  auto q1 = psVol->addVertexScalarQuantity("vals", vals);
+  q1->setEnabled(true);
+  polyscope::show(3);
+  polyscope::removeAllStructures();
+}
+
+TEST_F(PolyscopeTest, VolumeMeshScalarCell) {
+  std::vector<glm::vec3> verts;
+  std::vector<std::array<int, 8>> cells;
+  std::tie(verts, cells) = getVolumeMeshData();
+  polyscope::VolumeMesh* psVol = polyscope::registerVolumeMesh("vol", verts, cells);
+
+  std::vector<float> vals(cells.size(), 0.44);
+  auto q1 = psVol->addCellScalarQuantity("vals", vals);
+  q1->setEnabled(true);
+  polyscope::show(3);
+  polyscope::removeAllStructures();
+}
+
+TEST_F(PolyscopeTest, VolumeMeshVertexVector) {
+  std::vector<glm::vec3> verts;
+  std::vector<std::array<int, 8>> cells;
+  std::tie(verts, cells) = getVolumeMeshData();
+  polyscope::VolumeMesh* psVol = polyscope::registerVolumeMesh("vol", verts, cells);
+
+  std::vector<glm::vec3> vals(verts.size(), {1., 2., 3.});
+  auto q1 = psVol->addVertexVectorQuantity("vals", vals);
+  q1->setEnabled(true);
+  polyscope::show(3);
+  polyscope::removeAllStructures();
+}
+
+TEST_F(PolyscopeTest, VolumeMeshCellVector) {
+  std::vector<glm::vec3> verts;
+  std::vector<std::array<int, 8>> cells;
+  std::tie(verts, cells) = getVolumeMeshData();
+  polyscope::VolumeMesh* psVol = polyscope::registerVolumeMesh("vol", verts, cells);
+
+  std::vector<glm::vec3> vals(cells.size(), {1., 2., 3.});
+  auto q1 = psVol->addCellVectorQuantity("vals", vals);
+  q1->setEnabled(true);
+  polyscope::show(3);
+  polyscope::removeAllStructures();
+}
+
+// ============================================================
+// =============== Ground plane tests
+// ============================================================
+
+TEST_F(PolyscopeTest, GroundPlaneTest) {
+
+  // Add a structure and cycle through the ground plane options
+  auto psMesh = registerTriangleMesh();
+
+  polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::None;
+  polyscope::refresh();
+  polyscope::show(3);
+
+  polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::Tile;
+  polyscope::refresh();
+  polyscope::show(3);
+
+  polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::TileReflection;
+  polyscope::refresh();
+  polyscope::show(3);
+
+  polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
+  polyscope::refresh();
+  polyscope::show(3);
+
+  polyscope::removeAllStructures();
+}
+
 
 // ============================================================
 // =============== Combo test
 // ============================================================
-
 
 // Register a handful of quantities / structures, then call refresh
 TEST_F(PolyscopeTest, RefreshMultiTest) {
@@ -732,12 +1016,14 @@ TEST_F(PolyscopeTest, SlicePlaneTest) {
   std::vector<double> vScalar(psMesh->nVertices(), 7.);
   auto q1 = psMesh->addVertexDistanceQuantity("distance", vScalar);
 
-  { // Point cloud
-    auto psPoints = registerPointCloud();
-    std::vector<double> vScalar(psPoints->nPoints(), 7.);
-    auto q2 = psPoints->addScalarQuantity("vScalar", vScalar);
-    q2->setEnabled(true);
-  }
+  // Point cloud
+  auto psPoints = registerPointCloud();
+  psPoints->setPointRenderMode(polyscope::PointRenderMode::Sphere);
+  psPoints->setCullWholeElements(true);
+  std::vector<double> vScalarP(psPoints->nPoints(), 7.);
+  auto q2 = psPoints->addScalarQuantity("vScalar", vScalarP);
+  q2->setEnabled(true);
+
 
   { // Curve network
     auto psCurve = registerCurveNetwork();
@@ -746,10 +1032,31 @@ TEST_F(PolyscopeTest, SlicePlaneTest) {
     q3->setEnabled(true);
   }
 
+  { // Volume mesh
+    std::vector<glm::vec3> verts;
+    std::vector<std::array<int, 8>> cells;
+    std::tie(verts, cells) = getVolumeMeshData();
+    polyscope::VolumeMesh* psVol = polyscope::registerVolumeMesh("vol", verts, cells);
+
+    polyscope::VolumeMesh* psVol2 = polyscope::registerVolumeMesh("vol cull whole", verts, cells);
+    psVol2->setCullWholeElements(true);
+  }
+
   polyscope::show(3);
 
   // render with one slice plane
   polyscope::addSceneSlicePlane();
+  polyscope::show(3);
+
+  // try a few variations of point cloud settings
+  psPoints->setCullWholeElements(false);
+  polyscope::show(3);
+  psPoints->setCullWholeElements(true);
+  psPoints->setPointRenderMode(polyscope::PointRenderMode::Quad);
+  polyscope::show(3);
+  psPoints->setCullWholeElements(false);
+  polyscope::show(3);
+  
   polyscope::show(3);
 
   // add another and rotate it
@@ -767,6 +1074,41 @@ TEST_F(PolyscopeTest, SlicePlaneTest) {
 
   // remove the last plane so we don't leave it around for future tests
   polyscope::removeLastSceneSlicePlane();
+
+  polyscope::removeAllStructures();
+}
+
+// Register a handful of quantities / structures, then call refresh
+TEST_F(PolyscopeTest, OrthoViewTest) {
+
+  // Add some stuff
+
+  { // Surface mesh
+    auto psMesh = registerTriangleMesh();
+    std::vector<double> vScalar(psMesh->nVertices(), 7.);
+    auto q1 = psMesh->addVertexDistanceQuantity("distance", vScalar);
+  }
+
+  { // Point cloud
+    auto psPoints = registerPointCloud();
+    std::vector<double> vScalar(psPoints->nPoints(), 7.);
+    auto q2 = psPoints->addScalarQuantity("vScalar", vScalar);
+    q2->setEnabled(true);
+  }
+
+  { // Curve network
+    auto psCurve = registerCurveNetwork();
+    std::vector<glm::vec3> vals(psCurve->nEdges(), {1., 2., 3.});
+    auto q3 = psCurve->addEdgeVectorQuantity("vals", vals);
+    q3->setEnabled(true);
+  }
+
+  // Enable the orthographic view
+  polyscope::view::projectionMode = polyscope::ProjectionMode::Orthographic;
+  polyscope::show(3);
+
+  // Go back to default perspective
+  polyscope::view::projectionMode = polyscope::ProjectionMode::Perspective;
 
   polyscope::removeAllStructures();
 }

@@ -1,5 +1,7 @@
 # Polyscope's documentation is hosted at [polyscope.run](http://polyscope.run)
 
+To contribute, check out the [instructions here](https://polyscope.run/about/contributing/).
+
 ![Polyscope](http://polyscope.run/media/teaser.svg)
 
 [![actions status linux](https://github.com/nmwsharp/polyscope/workflows/linux/badge.svg)](https://github.com/nmwsharp/polyscope/actions)
@@ -7,7 +9,7 @@
 [![actions status windows](https://github.com/nmwsharp/polyscope/workflows/windows/badge.svg)](https://github.com/nmwsharp/polyscope/actions)
 ![PyPI](https://img.shields.io/pypi/v/polyscope?style=flat-square)
 
-Polyscope is a C++/Python viewer and user interface for 3D data, like meshes and point clouds. Scientists, engineers, artists, and hackers can use Polyscope to prototype algorithms---it is designed to easily integrate with existing codebases and popular libraries.  The lofty objective of Polyscope is to offer a useful visual interface to your data via a single line of code.
+Polyscope is a C++/Python viewer and user interface for 3D data such as meshes and point clouds. It allows you to register your data and quickly generate informative and beautiful visualizations, either programmatically or via a dynamic GUI. Polyscope is designed to be lightweight---it does not "take ownership" over your entire program, and it is easy to integrate with existing codebases and popular libraries. The lofty objective of Polyscope is to offer a useful visual interface to your data via a single line of code.
 
 Polyscope uses a paradigm of *structures* and *quantities*. A **structure** is a geometric object in the scene, such as a surface mesh or point cloud. A **quantity** is data associated with a structure, such as a scalar function or a vector field.
 

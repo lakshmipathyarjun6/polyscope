@@ -8,7 +8,6 @@
 #include "imgui.h"
 #include "stb_image.h"
 
-
 namespace polyscope {
 
 int dimension(const TextureFormat& x) {
@@ -132,9 +131,7 @@ ShaderReplacementRule::ShaderReplacementRule(std::string ruleName_,
     : ruleName(ruleName_), replacements(replacements_), uniforms(uniforms_), attributes(attributes_),
       textures(textures_) {}
 
-ShaderProgram::ShaderProgram(const std::vector<ShaderStageSpecification>& stages, DrawMode dm,
-                             unsigned int nPatchVertices_)
-    : drawMode(dm), nPatchVertices(nPatchVertices_) {
+ShaderProgram::ShaderProgram(const std::vector<ShaderStageSpecification>& stages, DrawMode dm) : drawMode(dm) {
 
   drawMode = dm;
   if (dm == DrawMode::IndexedLines || dm == DrawMode::IndexedLineStrip || dm == DrawMode::IndexedLineStripAdjacency ||
@@ -504,6 +501,8 @@ void Engine::setSSAAFactor(int newVal) {
   updateWindowSize(true);
 }
 
+bool Engine::getFrontFaceCCW() { return frontFaceCCW; }
+
 int Engine::getSSAAFactor() { return ssaaFactor; }
 
 void Engine::allocateGlobalBuffersAndPrograms() {
@@ -609,9 +608,10 @@ void Engine::addSlicePlane(std::string uniquePostfix) {
   // identical.
 
   createSlicePlaneFliterRule(uniquePostfix);
+  slicePlaneCount++;
 
   // Add rules
-  std::vector<std::string> newRules{"GENERATE_WORLD_POS", "CULL_POS_FROM_WORLD", "SLICE_PLANE_CULL_" + uniquePostfix};
+  std::vector<std::string> newRules{"SLICE_PLANE_CULL_" + uniquePostfix};
   defaultRules_sceneObject.insert(defaultRules_sceneObject.end(), newRules.begin(), newRules.end());
   defaultRules_pick.insert(defaultRules_pick.end(), newRules.begin(), newRules.end());
 
@@ -621,8 +621,9 @@ void Engine::addSlicePlane(std::string uniquePostfix) {
 
 void Engine::removeSlicePlane(std::string uniquePostfix) {
 
+  slicePlaneCount--;
   // Remove the (last occurence of the) rules we added
-  std::vector<std::string> newRules{"GENERATE_WORLD_POS", "CULL_POS_FROM_WORLD", "SLICE_PLANE_CULL_" + uniquePostfix};
+  std::vector<std::string> newRules{"SLICE_PLANE_CULL_" + uniquePostfix};
   auto deleteLast = [&](std::vector<std::string>& vec, std::string target) {
     for (size_t i = vec.size(); i > 0; i--) {
       if (vec[i - 1] == target) {
@@ -641,6 +642,9 @@ void Engine::removeSlicePlane(std::string uniquePostfix) {
   // Regenerate everything
   polyscope::refresh();
 }
+
+bool Engine::slicePlanesEnabled() { return slicePlaneCount > 0; }
+
 
 std::vector<glm::vec3> Engine::screenTrianglesCoords() {
   std::vector<glm::vec3> coords = {{-1.0f, -1.0f, 0.0f}, {1.0f, -1.0f, 0.0f}, {-1.0f, 1.0f, 0.0f},
@@ -906,6 +910,39 @@ const ValueColorMap& Engine::getColorMap(const std::string& name) {
 
   throw std::runtime_error("unrecognized colormap name: " + name);
   return *colorMaps[0];
+}
+
+
+// Forward declare compressed binary font functions
+unsigned int getCousineRegularCompressedSize();
+const unsigned int* getCousineRegularCompressedData();
+unsigned int getLatoRegularCompressedSize();
+const unsigned int* getLatoRegularCompressedData();
+
+
+void Engine::configureImGui() {
+
+  ImGuiIO& io = ImGui::GetIO();
+
+  { // add regular font
+    ImFontConfig config;
+    regularFont = io.Fonts->AddFontFromMemoryCompressedTTF(getLatoRegularCompressedData(),
+                                                           getLatoRegularCompressedSize(), 18.0f, &config);
+  }
+
+  { // add mono font
+    ImFontConfig config;
+    monoFont = io.Fonts->AddFontFromMemoryCompressedTTF(getCousineRegularCompressedData(),
+                                                        getCousineRegularCompressedSize(), 16.0f, &config);
+  }
+
+  // io.Fonts->AddFontFromFileTTF("test-font-name.ttf", 16);
+
+  io.Fonts->Build();
+  globalFontAtlas = io.Fonts;
+
+
+  setImGuiStyle();
 }
 
 void Engine::loadDefaultColorMap(std::string name) {

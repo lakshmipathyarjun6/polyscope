@@ -105,13 +105,13 @@ void writePrefsFile() {
 
 void init(std::string backend) {
   if (state::initialized) {
-    if(backend != state::backend) {
+    if (backend != state::backend) {
       throw std::runtime_error("re-initializing with different backend is not supported");
     }
     // otherwise silently allow multiple-init
     return;
   }
-  
+
   state::backend = backend;
 
   if (options::usePrefsFile) {
@@ -577,6 +577,8 @@ void buildUserGuiAndInvokeCallback() {
       rightWindowsWidth = ImGui::GetWindowWidth();
       lastWindowHeightUser = imguiStackMargin + ImGui::GetWindowHeight();
       ImGui::End();
+    } else {
+      lastWindowHeightUser = imguiStackMargin;
     }
 
     ImGui::PopID();
@@ -1005,10 +1007,20 @@ void updateStructureExtents() {
     }
   }
 
+  // If we got a non-finite bounding box, fix it
   if (!isFinite(minBbox) || !isFinite(maxBbox)) {
     minBbox = -glm::vec3{1, 1, 1};
     maxBbox = glm::vec3{1, 1, 1};
   }
+
+  // If we got a degenerate bounding box, perturb it slightly
+  if (minBbox == maxBbox) {
+    double offsetScale = (state::lengthScale == 0) ? 1e-5 : state::lengthScale*1e-5;
+    glm::vec3 offset{offsetScale, offsetScale, offsetScale};
+    minBbox = minBbox - offset / 2.f;
+    maxBbox = maxBbox + offset / 2.f;
+  }
+
   std::get<0>(state::boundingBox) = minBbox;
   std::get<1>(state::boundingBox) = maxBbox;
 

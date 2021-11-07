@@ -78,6 +78,7 @@ R"(
         void main()
         {
            float depth = gl_FragCoord.z;
+           ${ GLOBAL_FRAGMENT_FILTER_PREP }$
            ${ GLOBAL_FRAGMENT_FILTER }$
           
            // Shading
@@ -110,6 +111,37 @@ R"(
 
 
 // == Rules
+
+// input: 2 uniforms and an int attribute
+// output: vec3 albedoColor
+const ShaderReplacementRule MESH_PROPAGATE_TYPE_AND_BASECOLOR2_SHADE (
+    /* rule name */ "MESH_PROPAGATE_TYPE_AND_BASECOLOR2_SHADE",
+    { /* replacement sources */
+      {"VERT_DECLARATIONS", R"(
+          in float a_faceColorType;
+          out float a_faceColorTypeToFrag;
+        )"},
+      {"VERT_ASSIGNMENTS", R"(
+          a_faceColorTypeToFrag = a_faceColorType;
+        )"},
+      {"FRAG_DECLARATIONS", R"(
+          uniform vec3 u_baseColor1;
+          uniform vec3 u_baseColor2;
+          in float a_faceColorTypeToFrag;
+        )"},
+      {"GENERATE_SHADE_COLOR", R"(
+          vec3 albedoColor = (a_faceColorTypeToFrag == 0.) ? u_baseColor1 : u_baseColor2;
+        )"}
+    },
+    /* uniforms */ {
+      {"u_baseColor1", DataType::Vector3Float},
+      {"u_baseColor2", DataType::Vector3Float},
+    },
+    /* attributes */ {
+      {"a_faceColorType", DataType::Float},
+    },
+    /* textures */ {}
+);
 
 const ShaderReplacementRule MESH_PROPAGATE_VALUE (
     /* rule name */ "MESH_PROPAGATE_VALUE",
@@ -213,6 +245,29 @@ const ShaderReplacementRule MESH_PROPAGATE_VALUE2 (
     /* textures */ {}
 );
 
+const ShaderReplacementRule MESH_PROPAGATE_CULLPOS (
+    /* rule name */ "MESH_PROPAGATE_CULLPOS",
+    { /* replacement sources */
+      {"VERT_DECLARATIONS", R"(
+          in vec3 a_cullPos;
+          out vec3 a_cullPosFrag;
+        )"},
+      {"VERT_ASSIGNMENTS", R"(
+          a_cullPosFrag = vec3(u_modelView * vec4(a_cullPos, 1.));
+        )"},
+      {"FRAG_DECLARATIONS", R"(
+          in vec3 a_cullPosFrag;
+        )"},
+      {"GLOBAL_FRAGMENT_FILTER_PREP", R"(
+          vec3 cullPos = a_cullPosFrag;
+        )"},
+    },
+    /* uniforms */ {},
+    /* attributes */ {
+      {"a_cullPos", DataType::Vector3Float},
+    },
+    /* textures */ {}
+);
 
 const ShaderReplacementRule MESH_WIREFRAME(
     /* rule name */ "MESH_WIREFRAME",
@@ -284,6 +339,27 @@ const ShaderReplacementRule MESH_BACKFACE_DARKEN (
         )"}
     },
     /* uniforms */ {},
+    /* attributes */ {},
+    /* textures */ {}
+);
+
+
+const ShaderReplacementRule MESH_BACKFACE_DIFFERENT (
+    /* rule name */ "MESH_BACKFACE_DIFFERENT",
+    { /* replacement sources */
+      {"FRAG_DECLARATIONS", R"(
+          uniform vec3 u_backfaceColor;
+        )"},
+      {"GENERATE_SHADE_COLOR", R"(
+        if(!gl_FrontFacing) {
+          albedoColor = u_backfaceColor;
+        }
+  )"}
+    },
+    /* uniforms */ 
+    {
+      {"u_backfaceColor", DataType::Vector3Float}
+    },
     /* attributes */ {},
     /* textures */ {}
 );

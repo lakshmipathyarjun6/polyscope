@@ -30,10 +30,6 @@
 namespace polyscope {
 namespace render {
 
-// Forward declare compressed binary font functions
-unsigned int getCousineRegularCompressedSize();
-const unsigned int* getCousineRegularCompressedData();
-
 namespace backend_openGL3_glfw {
 
 GLEngine* glEngine = nullptr; // alias for global engine pointer
@@ -100,8 +96,6 @@ inline GLenum type(const TextureFormat& x) {
 inline GLenum native(const ShaderStageType& x) {
   switch (x) {
     case ShaderStageType::Vertex:           return GL_VERTEX_SHADER;
-    case ShaderStageType::Tessellation:     return GL_TESS_CONTROL_SHADER;
-    case ShaderStageType::Evaluation:       return GL_TESS_EVALUATION_SHADER;
     case ShaderStageType::Geometry:         return GL_GEOMETRY_SHADER;
     //case ShaderStageType::Compute:          return GL_COMPUTE_SHADER;
     case ShaderStageType::Fragment:         return GL_FRAGMENT_SHADER;
@@ -612,18 +606,8 @@ void GLFrameBuffer::blitTo(FrameBuffer* targetIn) {
 // ==================  Shader Program  =========================
 // =============================================================
 
-GLShaderProgram::GLShaderProgram(const std::vector<ShaderStageSpecification>& stages, DrawMode dm,
-                                 unsigned int nPatchVertices)
-    : ShaderProgram(stages, dm, nPatchVertices) {
-
-  GLint maxPatchVertices;
-  glGetIntegerv(GL_MAX_PATCH_VERTICES, &maxPatchVertices);
-  if (nPatchVertices != 0 && nPatchVertices > (unsigned int)maxPatchVertices) {
-    throw std::invalid_argument("Requested number of patch vertices (" + std::to_string(nPatchVertices) +
-                                ") is greater than the number supported by the tessellator (" +
-                                std::to_string(maxPatchVertices));
-  }
-
+GLShaderProgram::GLShaderProgram(const std::vector<ShaderStageSpecification>& stages, DrawMode dm)
+    : ShaderProgram(stages, dm) {
 
   // Collect attributes and uniforms from all of the shaders
   for (const ShaderStageSpecification& s : stages) {
@@ -743,19 +727,30 @@ void GLShaderProgram::setDataLocations() {
   // Uniforms
   for (GLShaderUniform& u : uniforms) {
     u.location = glGetUniformLocation(programHandle, u.name.c_str());
-    if (u.location == -1) throw std::runtime_error("failed to get location for uniform " + u.name);
+    if (u.location == -1) {
+      if (options::verbosity > 2) {
+        info("failed to get location for uniform " + u.name);
+      }
+      // throw std::runtime_error("failed to get location for uniform " + u.name);
+    }
   }
 
   // Attributes
   for (GLShaderAttribute& a : attributes) {
     a.location = glGetAttribLocation(programHandle, a.name.c_str());
-    if (a.location == -1) throw std::runtime_error("failed to get location for attribute " + a.name);
+    if (a.location == -1) {
+      info("failed to get location for attribute " + a.name);
+    }
+    // throw std::runtime_error("failed to get location for attribute " + a.name);
   }
 
   // Textures
   for (GLShaderTexture& t : textures) {
     t.location = glGetUniformLocation(programHandle, t.name.c_str());
-    if (t.location == -1) throw std::runtime_error("failed to get location for texture " + t.name);
+    if (t.location == -1) {
+      info("failed to get location for texture " + t.name);
+    }
+    // throw std::runtime_error("failed to get location for texture " + t.name);
   }
 
   checkGLError();
@@ -768,6 +763,7 @@ void GLShaderProgram::createBuffers() {
 
   // Create buffers for each attributes
   for (GLShaderAttribute& a : attributes) {
+    if (a.location == -1) continue;
     glGenBuffers(1, &a.VBOLoc);
     glBindBuffer(GL_ARRAY_BUFFER, a.VBOLoc);
 
@@ -836,7 +832,7 @@ void GLShaderProgram::createBuffers() {
 
 bool GLShaderProgram::hasUniform(std::string name) {
   for (GLShaderUniform& u : uniforms) {
-    if (u.name == name) {
+    if (u.name == name && u.location != -1) {
       return true;
     }
   }
@@ -849,6 +845,7 @@ void GLShaderProgram::setUniform(std::string name, int val) {
 
   for (GLShaderUniform& u : uniforms) {
     if (u.name == name) {
+      if (u.location == -1) return;
       if (u.type == DataType::Int) {
         glUniform1i(u.location, val);
         u.isSet = true;
@@ -867,6 +864,7 @@ void GLShaderProgram::setUniform(std::string name, unsigned int val) {
 
   for (GLShaderUniform& u : uniforms) {
     if (u.name == name) {
+      if (u.location == -1) return;
       if (u.type == DataType::UInt) {
         glUniform1ui(u.location, val);
         u.isSet = true;
@@ -885,6 +883,7 @@ void GLShaderProgram::setUniform(std::string name, float val) {
 
   for (GLShaderUniform& u : uniforms) {
     if (u.name == name) {
+      if (u.location == -1) return;
       if (u.type == DataType::Float) {
         glUniform1f(u.location, val);
         u.isSet = true;
@@ -903,6 +902,7 @@ void GLShaderProgram::setUniform(std::string name, double val) {
 
   for (GLShaderUniform& u : uniforms) {
     if (u.name == name) {
+      if (u.location == -1) return;
       if (u.type == DataType::Float) {
         glUniform1f(u.location, static_cast<float>(val));
         u.isSet = true;
@@ -922,6 +922,7 @@ void GLShaderProgram::setUniform(std::string name, float* val) {
 
   for (GLShaderUniform& u : uniforms) {
     if (u.name == name) {
+      if (u.location == -1) return;
       if (u.type == DataType::Matrix44Float) {
         glUniformMatrix4fv(u.location, 1, false, val);
         u.isSet = true;
@@ -940,6 +941,7 @@ void GLShaderProgram::setUniform(std::string name, glm::vec2 val) {
 
   for (GLShaderUniform& u : uniforms) {
     if (u.name == name) {
+      if (u.location == -1) return;
       if (u.type == DataType::Vector2Float) {
         glUniform2f(u.location, val.x, val.y);
         u.isSet = true;
@@ -958,6 +960,7 @@ void GLShaderProgram::setUniform(std::string name, glm::vec3 val) {
 
   for (GLShaderUniform& u : uniforms) {
     if (u.name == name) {
+      if (u.location == -1) return;
       if (u.type == DataType::Vector3Float) {
         glUniform3f(u.location, val.x, val.y, val.z);
         u.isSet = true;
@@ -976,6 +979,7 @@ void GLShaderProgram::setUniform(std::string name, glm::vec4 val) {
 
   for (GLShaderUniform& u : uniforms) {
     if (u.name == name) {
+      if (u.location == -1) return;
       if (u.type == DataType::Vector4Float) {
         glUniform4f(u.location, val.x, val.y, val.z, val.w);
         u.isSet = true;
@@ -994,6 +998,7 @@ void GLShaderProgram::setUniform(std::string name, std::array<float, 3> val) {
 
   for (GLShaderUniform& u : uniforms) {
     if (u.name == name) {
+      if (u.location == -1) return;
       if (u.type == DataType::Vector3Float) {
         glUniform3f(u.location, val[0], val[1], val[2]);
         u.isSet = true;
@@ -1012,6 +1017,7 @@ void GLShaderProgram::setUniform(std::string name, float x, float y, float z, fl
 
   for (GLShaderUniform& u : uniforms) {
     if (u.name == name) {
+      if (u.location == -1) return;
       if (u.type == DataType::Vector4Float) {
         glUniform4f(u.location, x, y, z, w);
         u.isSet = true;
@@ -1026,7 +1032,7 @@ void GLShaderProgram::setUniform(std::string name, float x, float y, float z, fl
 
 bool GLShaderProgram::hasAttribute(std::string name) {
   for (GLShaderAttribute& a : attributes) {
-    if (a.name == name) {
+    if (a.name == name && a.location != -1) {
       return true;
     }
   }
@@ -1035,7 +1041,7 @@ bool GLShaderProgram::hasAttribute(std::string name) {
 
 bool GLShaderProgram::attributeIsSet(std::string name) {
   for (GLShaderAttribute& a : attributes) {
-    if (a.name == name) {
+    if (a.name == name && a.location != -1) {
       return a.dataSize != -1;
     }
   }
@@ -1056,6 +1062,7 @@ void GLShaderProgram::setAttribute(std::string name, const std::vector<glm::vec2
   for (GLShaderAttribute& a : attributes) {
     if (a.name == name) {
       if (a.type == DataType::Vector2Float) {
+        if (a.location == -1) return;
         glBindVertexArray(vaoHandle);
         glBindBuffer(GL_ARRAY_BUFFER, a.VBOLoc);
         if (update) {
@@ -1099,6 +1106,7 @@ void GLShaderProgram::setAttribute(std::string name, const std::vector<glm::vec3
   for (GLShaderAttribute& a : attributes) {
     if (a.name == name) {
       if (a.type == DataType::Vector3Float) {
+        if (a.location == -1) return;
         glBindVertexArray(vaoHandle);
         glBindBuffer(GL_ARRAY_BUFFER, a.VBOLoc);
         if (update) {
@@ -1143,6 +1151,7 @@ void GLShaderProgram::setAttribute(std::string name, const std::vector<glm::vec4
   for (GLShaderAttribute& a : attributes) {
     if (a.name == name) {
       if (a.type == DataType::Vector4Float) {
+        if (a.location == -1) return;
         glBindVertexArray(vaoHandle);
         glBindBuffer(GL_ARRAY_BUFFER, a.VBOLoc);
         if (update) {
@@ -1182,6 +1191,7 @@ void GLShaderProgram::setAttribute(std::string name, const std::vector<double>& 
   for (GLShaderAttribute& a : attributes) {
     if (a.name == name) {
       if (a.type == DataType::Float) {
+        if (a.location == -1) return;
         glBindVertexArray(vaoHandle);
         glBindBuffer(GL_ARRAY_BUFFER, a.VBOLoc);
         if (update) {
@@ -1223,6 +1233,7 @@ void GLShaderProgram::setAttribute(std::string name, const std::vector<int>& dat
   for (GLShaderAttribute& a : attributes) {
     if (a.name == name) {
       if (a.type == DataType::Int) {
+        if (a.location == -1) return;
         glBindVertexArray(vaoHandle);
         glBindBuffer(GL_ARRAY_BUFFER, a.VBOLoc);
         if (update) {
@@ -1265,6 +1276,7 @@ void GLShaderProgram::setAttribute(std::string name, const std::vector<uint32_t>
   for (GLShaderAttribute& a : attributes) {
     if (a.name == name) {
       if (a.type == DataType::UInt) {
+        if (a.location == -1) return;
         glBindVertexArray(vaoHandle);
         glBindBuffer(GL_ARRAY_BUFFER, a.VBOLoc);
         if (update) {
@@ -1295,7 +1307,7 @@ void GLShaderProgram::setAttribute(std::string name, const std::vector<uint32_t>
 
 bool GLShaderProgram::hasTexture(std::string name) {
   for (GLShaderTexture& t : textures) {
-    if (t.name == name) {
+    if (t.name == name && t.location != -1) {
       return true;
     }
   }
@@ -1304,7 +1316,7 @@ bool GLShaderProgram::hasTexture(std::string name) {
 
 bool GLShaderProgram::textureIsSet(std::string name) {
   for (GLShaderTexture& t : textures) {
-    if (t.name == name) {
+    if (t.name == name && t.location != -1) {
       return t.isSet;
     }
   }
@@ -1316,7 +1328,7 @@ void GLShaderProgram::setTexture1D(std::string name, unsigned char* texData, uns
 
   // Find the right texture
   for (GLShaderTexture& t : textures) {
-    if (t.name != name) continue;
+    if (t.name != name || t.location == -1) continue;
 
     if (t.isSet) {
       throw std::invalid_argument("Attempted to set texture twice");
@@ -1349,7 +1361,7 @@ void GLShaderProgram::setTexture2D(std::string name, unsigned char* texData, uns
 
   // Find the right texture
   for (GLShaderTexture& t : textures) {
-    if (t.name != name) continue;
+    if (t.name != name || t.location == -1) continue;
 
     if (t.isSet) {
       throw std::invalid_argument("Attempted to set texture twice");
@@ -1397,7 +1409,7 @@ void GLShaderProgram::setTextureFromBuffer(std::string name, TextureBuffer* text
 
   // Find the right texture
   for (GLShaderTexture& t : textures) {
-    if (t.name != name) continue;
+    if (t.name != name || t.location == -1) continue;
 
     if (t.dim != (int)textureBuffer->getDimension()) {
       throw std::invalid_argument("Tried to use texture with mismatched dimension " + std::to_string(t.dim));
@@ -1422,7 +1434,7 @@ void GLShaderProgram::setTextureFromColormap(std::string name, const std::string
 
   // Find the right texture
   for (GLShaderTexture& t : textures) {
-    if (t.name != name) continue;
+    if (t.name != name || t.location == -1) continue;
 
     if (t.isSet && !allowUpdate) {
       throw std::invalid_argument("Attempted to set texture twice");
@@ -1507,6 +1519,7 @@ void GLShaderProgram::setIndex(std::vector<unsigned int>& indices) {
 void GLShaderProgram::validateData() {
   // Check uniforms
   for (GLShaderUniform& u : uniforms) {
+    if (u.location == -1) continue;
     if (!u.isSet) {
       throw std::invalid_argument("Uniform " + u.name + " has not been set");
     }
@@ -1515,6 +1528,7 @@ void GLShaderProgram::validateData() {
   // Check attributes
   long int attributeSize = -1;
   for (GLShaderAttribute a : attributes) {
+    if (a.location == -1) continue;
     if (a.dataSize < 0) {
       throw std::invalid_argument("Attribute " + a.name + " has not been set");
     }
@@ -1532,6 +1546,7 @@ void GLShaderProgram::validateData() {
 
   // Check textures
   for (GLShaderTexture& t : textures) {
+    if (t.location == -1) continue;
     if (!t.isSet) {
       throw std::invalid_argument("Texture " + t.name + " has not been set");
     }
@@ -1556,6 +1571,7 @@ void GLShaderProgram::setPrimitiveRestartIndex(unsigned int restartIndex_) {
 
 void GLShaderProgram::activateTextures() {
   for (GLShaderTexture& t : textures) {
+    if (t.location == -1) continue;
     // Point the uniform at this texture
 
     // Bind to the texture buffer
@@ -1600,10 +1616,6 @@ void GLShaderProgram::draw() {
     break;
   case DrawMode::TrianglesAdjacency:
     glDrawArrays(GL_TRIANGLES_ADJACENCY, 0, drawDataLength);
-    break;
-  case DrawMode::Patches:
-    glPatchParameteri(GL_PATCH_VERTICES, nPatchVertices);
-    glDrawArrays(GL_PATCHES, 0, drawDataLength);
     break;
   case DrawMode::LinesAdjacency:
     glDrawArrays(GL_LINES_ADJACENCY, 0, drawDataLength);
@@ -1708,7 +1720,6 @@ void GLEngine::initialize() {
 
 
 void GLEngine::initializeImGui() {
-
   bindDisplay();
 
   ImGui::CreateContext(); // must call once at start
@@ -1718,17 +1729,7 @@ void GLEngine::initializeImGui() {
   const char* glsl_version = "#version 150";
   ImGui_ImplOpenGL3_Init(glsl_version);
 
-  ImGuiIO& io = ImGui::GetIO();
-  ImFontConfig config;
-  config.OversampleH = 5;
-  config.OversampleV = 5;
-  ImFont* font = io.Fonts->AddFontFromMemoryCompressedTTF(getCousineRegularCompressedData(),
-                                                          getCousineRegularCompressedSize(), 15.0f, &config);
-  // io.OptResizeWindowsFromEdges = true;
-  // ImGui::StyleColorsLight();
-  setImGuiStyle();
-
-  globalFontAtlas = io.Fonts;
+  configureImGui();
 }
 
 void GLEngine::shutdownImGui() {
@@ -1786,6 +1787,14 @@ void GLEngine::updateWindowSize(bool force) {
       newWindowHeight != view::windowHeight || newWindowWidth != view::windowWidth) {
     // Basically a resize callback
     requestRedraw();
+
+    // prevent any division by zero for e.g. aspect ratio calcs
+    if (newBufferHeight == 0)
+      newBufferHeight = 1;
+
+    if (newWindowHeight == 0)
+      newWindowHeight = 1;
+
     view::bufferWidth = newBufferWidth;
     view::bufferHeight = newBufferHeight;
     view::windowWidth = newWindowWidth;
@@ -1937,6 +1946,16 @@ void GLEngine::applyTransparencySettings() {
   }
 }
 
+void GLEngine::setFrontFaceCCW(bool newVal) {
+  if (newVal == frontFaceCCW) return;
+  frontFaceCCW = newVal;
+  if (frontFaceCCW) {
+    glFrontFace(GL_CCW);
+  } else {
+    glFrontFace(GL_CW);
+  }
+}
+
 // == Factories
 std::shared_ptr<TextureBuffer> GLEngine::generateTextureBuffer(TextureFormat format, unsigned int size1D,
                                                                unsigned char* data) {
@@ -2036,6 +2055,7 @@ void GLEngine::populateDefaultShadersAndRules() {
   // == Load general base shaders
   registeredShaderPrograms.insert({"MESH", {{FLEX_MESH_VERT_SHADER, FLEX_MESH_FRAG_SHADER}, DrawMode::Triangles}});
   registeredShaderPrograms.insert({"RAYCAST_SPHERE", {{FLEX_SPHERE_VERT_SHADER, FLEX_SPHERE_GEOM_SHADER, FLEX_SPHERE_FRAG_SHADER}, DrawMode::Points}});
+  registeredShaderPrograms.insert({"POINT_QUAD", {{FLEX_POINTQUAD_VERT_SHADER, FLEX_POINTQUAD_GEOM_SHADER, FLEX_POINTQUAD_FRAG_SHADER}, DrawMode::Points}});
   registeredShaderPrograms.insert({"RAYCAST_VECTOR", {{FLEX_VECTOR_VERT_SHADER, FLEX_VECTOR_GEOM_SHADER, FLEX_VECTOR_FRAG_SHADER}, DrawMode::Points}});
   registeredShaderPrograms.insert({"RAYCAST_CYLINDER", {{FLEX_CYLINDER_VERT_SHADER, FLEX_CYLINDER_GEOM_SHADER, FLEX_CYLINDER_FRAG_SHADER}, DrawMode::Points}});
   registeredShaderPrograms.insert({"HISTOGRAM", {{HISTOGRAM_VERT_SHADER, HISTOGRAM_FRAG_SHADER}, DrawMode::Triangles}});
@@ -2072,9 +2092,9 @@ void GLEngine::populateDefaultShadersAndRules() {
   registeredShaderRules.insert({"TRANSPARENCY_PEEL_STRUCTURE", TRANSPARENCY_PEEL_STRUCTURE});
   registeredShaderRules.insert({"TRANSPARENCY_PEEL_GROUND", TRANSPARENCY_PEEL_GROUND});
   
-  registeredShaderRules.insert({"GENERATE_WORLD_POS", GENERATE_WORLD_POS});
-  registeredShaderRules.insert({"CULL_POS_FROM_WORLD", CULL_POS_FROM_WORLD});
-  registeredShaderRules.insert({"CULL_POS_FROM_ATTR", CULL_POS_FROM_ATTR});
+  registeredShaderRules.insert({"GENERATE_VIEW_POS", GENERATE_VIEW_POS});
+  registeredShaderRules.insert({"CULL_POS_FROM_VIEW", CULL_POS_FROM_VIEW});
+  //registeredShaderRules.insert({"CULL_POS_FROM_ATTR", CULL_POS_FROM_ATTR});
 
   // Lighting and shading things
   registeredShaderRules.insert({"LIGHT_MATCAP", LIGHT_MATCAP});
@@ -2092,21 +2112,27 @@ void GLEngine::populateDefaultShadersAndRules() {
   // mesh things
   registeredShaderRules.insert({"MESH_WIREFRAME", MESH_WIREFRAME});
   registeredShaderRules.insert({"MESH_BACKFACE_NORMAL_FLIP", MESH_BACKFACE_NORMAL_FLIP});
+  registeredShaderRules.insert({"MESH_BACKFACE_DIFFERENT", MESH_BACKFACE_DIFFERENT});
   registeredShaderRules.insert({"MESH_BACKFACE_DARKEN", MESH_BACKFACE_DARKEN});
   registeredShaderRules.insert({"MESH_PROPAGATE_VALUE", MESH_PROPAGATE_VALUE});
   registeredShaderRules.insert({"MESH_PROPAGATE_VALUE2", MESH_PROPAGATE_VALUE2});
   registeredShaderRules.insert({"MESH_PROPAGATE_COLOR", MESH_PROPAGATE_COLOR});
   registeredShaderRules.insert({"MESH_PROPAGATE_HALFEDGE_VALUE", MESH_PROPAGATE_HALFEDGE_VALUE});
+  registeredShaderRules.insert({"MESH_PROPAGATE_CULLPOS", MESH_PROPAGATE_CULLPOS});
+  registeredShaderRules.insert({"MESH_PROPAGATE_TYPE_AND_BASECOLOR2_SHADE", MESH_PROPAGATE_TYPE_AND_BASECOLOR2_SHADE});
   registeredShaderRules.insert({"MESH_PROPAGATE_PICK", MESH_PROPAGATE_PICK});
 
   // sphere things
   registeredShaderRules.insert({"SPHERE_PROPAGATE_VALUE", SPHERE_PROPAGATE_VALUE});
   registeredShaderRules.insert({"SPHERE_PROPAGATE_VALUE2", SPHERE_PROPAGATE_VALUE2});
   registeredShaderRules.insert({"SPHERE_PROPAGATE_COLOR", SPHERE_PROPAGATE_COLOR});
+  registeredShaderRules.insert({"SPHERE_CULLPOS_FROM_CENTER", SPHERE_CULLPOS_FROM_CENTER});
+  registeredShaderRules.insert({"SPHERE_CULLPOS_FROM_CENTER_QUAD", SPHERE_CULLPOS_FROM_CENTER_QUAD});
   registeredShaderRules.insert({"SPHERE_VARIABLE_SIZE", SPHERE_VARIABLE_SIZE});
 
   // vector things
   registeredShaderRules.insert({"VECTOR_PROPAGATE_COLOR", VECTOR_PROPAGATE_COLOR});
+  registeredShaderRules.insert({"VECTOR_CULLPOS_FROM_TAIL", VECTOR_CULLPOS_FROM_TAIL});
   registeredShaderRules.insert({"TRANSFORMATION_GIZMO_VEC", TRANSFORMATION_GIZMO_VEC});
 
   // cylinder things
@@ -2115,6 +2141,7 @@ void GLEngine::populateDefaultShadersAndRules() {
   registeredShaderRules.insert({"CYLINDER_PROPAGATE_COLOR", CYLINDER_PROPAGATE_COLOR});
   registeredShaderRules.insert({"CYLINDER_PROPAGATE_BLEND_COLOR", CYLINDER_PROPAGATE_BLEND_COLOR});
   registeredShaderRules.insert({"CYLINDER_PROPAGATE_PICK", CYLINDER_PROPAGATE_PICK});
+  registeredShaderRules.insert({"CYLINDER_CULLPOS_FROM_MID", CYLINDER_CULLPOS_FROM_MID});
 
   // clang-format on
 };
