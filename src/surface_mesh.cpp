@@ -996,7 +996,6 @@ void SurfaceMesh::moveVertexSelection(std::function<void(long long int)> onChang
         if (pickVal.second < nVertices()) {
           returnVertInd = pickVal.second;
           onChangeCallback(returnVertInd);
-          std::cout << "Selected: " << returnVertInd << std::endl;
         }
       }
     }
