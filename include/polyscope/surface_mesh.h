@@ -152,6 +152,10 @@ public:
 
   // === Make a one-time selection
   long long int selectVertex();
+
+  // === Move to a new vertex
+  long long int moveVertexSelection(int selctedVertex);
+
   // size_t selectFace();
 
   // === Mutate
