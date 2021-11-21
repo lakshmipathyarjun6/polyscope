@@ -8,6 +8,7 @@
 
 #include "imgui.h"
 
+#include <iostream>
 #include <unordered_map>
 #include <utility>
 
@@ -931,13 +932,81 @@ long long int SurfaceMesh::selectVertex() {
       }
     }
   };
-  
+
   // Pass control to the context we just created
   pushContext(focusedPopupUI);
-  
+
   setEdgeWidth(oldEdgeWidth); // restore edge setting
 
   return returnVertInd;
+}
+
+void SurfaceMesh::moveVertexSelection(std::function<void(long long int)> onChangeCallback) {
+  // Make sure we can see edges
+  float oldEdgeWidth = getEdgeWidth();
+  setEdgeWidth(1.);
+  this->setEnabled(true);
+
+  long long int returnVertInd = -1;
+
+  // Register the callback which creates the UI and does the hard work
+  auto focusedPopupUI = [&]() {
+    { // Create a window with instruction and a close button.
+      static bool showWindow = true;
+      ImGui::SetNextWindowSize(ImVec2(300, 0), ImGuiCond_Once);
+      ImGui::Begin("Move selected vertex", &showWindow);
+
+      ImGui::PushItemWidth(300);
+      ImGui::TextUnformatted("Hold ctrl and left-click to drag to new vertex");
+      ImGui::Separator();
+
+      // Choose by number
+      ImGui::PushItemWidth(300);
+      static int iV = -1;
+      ImGui::InputInt("index", &iV);
+      if (ImGui::Button("Select by index")) {
+        if (iV >= 0 && (size_t)iV < nVertices()) {
+          returnVertInd = iV;
+          popContext();
+        }
+      }
+      ImGui::PopItemWidth();
+
+      ImGui::Separator();
+      if (ImGui::Button("Abort")) {
+        popContext();
+      }
+
+      ImGui::End();
+    }
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.KeyCtrl && !io.WantCaptureMouse && ImGui::IsMouseDragging(0)) {
+
+      ImGuiIO& io = ImGui::GetIO();
+
+      // API is a giant mess..
+      size_t pickInd;
+      ImVec2 p = ImGui::GetMousePos();
+      std::pair<Structure*, size_t> pickVal =
+          pick::evaluatePickQuery(io.DisplayFramebufferScale.x * p.x, io.DisplayFramebufferScale.y * p.y);
+
+      if (pickVal.first == this) {
+
+        if (pickVal.second < nVertices()) {
+          returnVertInd = pickVal.second;
+          onChangeCallback(returnVertInd);
+        }
+      }
+    }
+  };
+
+  // Pass control to the context we just created
+  pushContext(focusedPopupUI);
+
+  setEdgeWidth(oldEdgeWidth); // restore edge setting
+
+  // return returnVertInd;
 }
 
 /*
