@@ -154,7 +154,7 @@ public:
   long long int selectVertex();
 
   // === Move to a new vertex
-  long long int moveVertexSelection(int selctedVertex);
+  long long int moveVertexSelection(long long int& newSelection);
 
   // size_t selectFace();
 

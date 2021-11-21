@@ -941,7 +941,7 @@ long long int SurfaceMesh::selectVertex() {
   return returnVertInd;
 }
 
-long long int SurfaceMesh::moveVertexSelection(int selctedVertex) {
+long long int SurfaceMesh::moveVertexSelection(long long int& newSelection) {
   // Make sure we can see edges
   float oldEdgeWidth = getEdgeWidth();
   setEdgeWidth(1.);
@@ -965,7 +965,7 @@ long long int SurfaceMesh::moveVertexSelection(int selctedVertex) {
       static int iV = -1;
       ImGui::InputInt("index", &iV);
       if (ImGui::Button("Select by index")) {
-        if (iV >= 0 && (size_t)iV < nVertices() && iV != selctedVertex) {
+        if (iV >= 0 && (size_t)iV < nVertices()) {
           returnVertInd = iV;
           popContext();
         }
@@ -995,6 +995,7 @@ long long int SurfaceMesh::moveVertexSelection(int selctedVertex) {
 
         if (pickVal.second < nVertices()) {
           returnVertInd = pickVal.second;
+          newSelection = returnVertInd;
           std::cout << "Selected: " << returnVertInd << std::endl;
         }
       }
