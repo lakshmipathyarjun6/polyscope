@@ -941,7 +941,7 @@ long long int SurfaceMesh::selectVertex() {
   return returnVertInd;
 }
 
-long long int SurfaceMesh::moveVertexSelection(long long int& newSelection) {
+void SurfaceMesh::moveVertexSelection(std::function<void(long long int)> onChangeCallback) {
   // Make sure we can see edges
   float oldEdgeWidth = getEdgeWidth();
   setEdgeWidth(1.);
@@ -995,7 +995,7 @@ long long int SurfaceMesh::moveVertexSelection(long long int& newSelection) {
 
         if (pickVal.second < nVertices()) {
           returnVertInd = pickVal.second;
-          newSelection = returnVertInd;
+          onChangeCallback(returnVertInd);
           std::cout << "Selected: " << returnVertInd << std::endl;
         }
       }
@@ -1007,7 +1007,7 @@ long long int SurfaceMesh::moveVertexSelection(long long int& newSelection) {
 
   setEdgeWidth(oldEdgeWidth); // restore edge setting
 
-  return returnVertInd;
+  // return returnVertInd;
 }
 
 /*
