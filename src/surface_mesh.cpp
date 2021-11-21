@@ -8,6 +8,7 @@
 
 #include "imgui.h"
 
+#include <iostream>
 #include <unordered_map>
 #include <utility>
 
@@ -994,6 +995,7 @@ long long int SurfaceMesh::moveVertexSelection(int selctedVertex) {
 
         if (pickVal.second < nVertices()) {
           returnVertInd = pickVal.second;
+          std::cout << "Selected: " << returnVertInd << std::endl;
         }
       }
     }
