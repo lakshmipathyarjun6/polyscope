@@ -179,7 +179,7 @@ void SurfaceParameterizationQuantity::buildCustomUI() {
   case ParamVizStyle::LOCAL_RAD: {
     // Angle slider
     ImGui::PushItemWidth(100);
-    ImGui::SliderAngle("angle shift", &localRot, -180, 180); // displays in degrees, works in radians TODO refresh/update/persist
+    ImGui::InputFloat("angle shift", &localRot); // displays in degrees, works in radians TODO refresh/update/persist
     if (ImGui::DragFloat("alt darkness", &altDarkness.get(), 0.01, 0., 1.)) {
       altDarkness.manuallyChanged();
       requestRedraw();
@@ -202,6 +202,11 @@ SurfaceParameterizationQuantity* SurfaceParameterizationQuantity::setStyle(Param
   program.reset();
   requestRedraw();
   return this;
+}
+
+void SurfaceParameterizationQuantity::setAngleShift(double newVal)
+{
+  localRot = newVal;
 }
 
 ParamVizStyle SurfaceParameterizationQuantity::getStyle() { return vizStyle.get(); }

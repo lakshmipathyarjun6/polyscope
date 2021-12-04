@@ -60,6 +60,8 @@ public:
   // Darkness for checkers (etc)
   SurfaceParameterizationQuantity* setAltDarkness(double newVal);
   double getAltDarkness();
+
+  void setAngleShift(double newVal);
     
 
 protected:
